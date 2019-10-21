@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title> Dashboard </title>
+
+<!-- MORRIS JS CHARST -->
+    <link rel="stylesheet" href="http://cdn.jsdelivr.net/chartist.js/latest/chartist.min.css">
+    <script src="http://cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>
+
+<!-- GOOGLE MAPS API -->
+    <script  async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD9bguWirODgpL0qLPSIvCsNE4SOCTmf9U"></script>
+
+<!-- AJAX -->
+
+<!-- JQUERY -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+<!-- BOOSTRAP -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+<!-- FONT AWESOME -->
+    <script src="https://kit.fontawesome.com/301480f1f5.js"></script>
+  
+<!-- CSS -->
+    <link rel="stylesheet" type="text/css" href="../static/css/PopUp.css">
+
+<!-- DATOS -->
+    <meta id="data" data-url="{{ url }}" data-coords="{{ coords }}" data-central_point = "{{ central_point }}">
+  </head>
+  <body class="bg-light">
+    <div class="container-fluid">
+      <div class="row">
+        <nav class="col-2 card">
+          <div class="row mb-2">
+            <div class="col">
+              <h3 class="mt-3 mb-0"> Tus lista </h3>
+              <span class="text-secondary"> lista de zonas a monitoriar </span>
+            </div>
+            <div class="col-2 mt-3 mr-4">
+              <button class="btn" id="abrir">
+                <h2>
+                  <i class="fas fa-plus-square"></i> 
+                </h2>
+              </button>
+            </div>
+          </div>
+          <hr>
+          {% for x in zonas %}
+            <a href="/index?cord={{x.id}}" class="mb-1 text-dark">
+              <i class="ZonaInteres fas fa-map-marker-alt mr-2"></i> {{x.nombre}}
+            </a>
+          {% endfor %}
+        </nav>
+        <main role="main" class="col">
+          <div class="my-3">
+            <div class="row">
+              <div class="col">
+                <h3 class="mb-0 font-weight-bold"> Dashboard </h3>
+                <span class="footer text-muted"> datos globales </span>
+              </div>
+              <div class="col text-right">
+                <a href="/logout">
+                  <button class="btn btn-danger">
+                    <i class="fas fa-power-off"></i> 
+                  </button>
+                </a>
+              </div>
+            </div>
+          </div>
+          {% with messages = get_flashed_messages(with_categories = True) %}
+            {% if messages %}
+              {% for category ,message in messages %}
+                <div class="alert alert-{{category}} alert-dismissible fade show text-center" role="alert">  
+                  {{ message }}
+                  <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+          <div class="row">
+            <div class="col">
+              <div class="card shadow-lg text-white py-3 mx-0" style="background-color:#dc3545;">
+                <div class="row">
+                  <div class="col-3">
+                    <h2 class="display-4 mx-2">
+                      <i class="fas fa-map-marked-alt"></i>
+                    </h2>
+                  </div>
+                  <div class="col">
+                    <h2 class="mb-0"> Area </h2>
+                    <p class="mb-0 font-weight-bold">  % {{ area_25 * 100}} </p>
+                    <p class="mb-0"> Area cubierta con plastico </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card shadow-lg text-white py-3 mx-0" style="background-color:#00b297;">
+                <div class="row">
+                  <div class="col-3">
+                    <h1 class="display-4 mx-2">
+                      <i class="fas fa-globe-americas"></i>
+                    </h1>
+                  </div>
+                  <div>
+                    <h2 class="mb-0"> Cordenadas </h2>
+                    <p class="mb-0"> <strong> Lan: </strong> {{ central_point[0] }} </p>
+                    <p class="mb-0"> <strong> Lng: </strong>{{ central_point[1] }} </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card shadow-lg text-white py-3 mx-0" style="background-color:#0866C6;">
+                <div class="row">
+                  <div class="col-3 mb-0">
+                    <h1 class="display-4 mx-2">
+                      <i class="far fa-hourglass"></i>
+                    </h1>
+                  </div>
+                  <div>
+                    <h2 class="mb-0"> Fecha </h2>
+                    <p class="mb-0 font-weight-bold"> Ultima foto: </p>
+                    <p class="mb-0"> {{ fecha }} </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card shadow-lg text-white py-3 mx-0" style="background-color:#1D2939;">
+                <img src="../static/img/Logo2.png" class="mx-5" style=" width: 300px;">
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-8">
+              <!-- MAPA -->
+              <div class="card mx-0 my-3 shadow-lg">
+                <div id="map" style="height: 500px"></div>
+              </div>
+              <div class="card shadow-lg">
+                <div class="histograma p-4" style="height: 290px"></div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="card mt-3 mx-0 p-3 shadow-lg">
+                <div class="percentil" style="height:350px;"></div>
+              </div>
+              <div class="card mt-3 mx-0 shadow-lg">
+                <div class="card-header bg-white text
+                -white">
+                  <div id="ct-chart" class="ct-chart" style="height: 300px;"></div>
+                </div>
+                <div class="card-body bg-info text-white">
+                  <h3> Percentiles </h3to>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="overlay" id="overlay">
+            <div class="popup" id="popup">
+              <div class="card p-4" style="height: 20rem; width: 35rem;">
+                <div class="row">
+                  <div class="col">
+                    <h3> Agregar una zona de interes </h3>
+                  </div>
+                  <div class="col text-right">
+                    <button class="btn" id="cerrar"> <i class="fas fa-times"></i> </button>
+                  </div>
+                </div>
+                <form action="/index" method="post" enctype="multipart/form-data">
+                  <div class="form-group mt-2">
+                    <input type="text" class="form-control" placeholder="Nombre" name=nombre>
+                  </div>
+                  <div class="custom-file">
+                    <input type="file" class="custom-file-input" id="customFile" name="archivo">
+                    <label class="custom-file-label" for="customFile">Choose file, shp , json o geojson </label>
+                  </div>
+                  <button type="submit" class="btn btn-info btn-lg btn-block mt-5">Submit</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+      <hr>
+        <footer class="page-footer font-small blue">
+          <!-- Copyright -->
+          <div class="footer-copyright text-center py-3">© 2019 Copyright:
+            <a href="#"> DeepStellite. </a>
+          </div>
+        </footer>
+      </div>
+    </div>
+<!-- CHARTS -->
+    <script>
+      var data = {
+        labels: ['Indice 0.0', 'Indice 0.25', 'Indice 0.50' ,'Indice 0.75','Indice 0.100'],
+        series: ["{{ estadisticas.area_00 }}", 
+                 "{{ estadisticas.area_25 }}", 
+                 "{{ estadisticas.area_50 }}",
+                 "{{ estadisticas.area_75 }}", 
+                 "{{ estadisticas.area_100 }}"]
+      };
+
+      var options = {
+        labelInterpolationFnc: function(value) {
+          return value[0]
+        }
+      };
+
+      var responsiveOptions = [
+        ['screen and (min-width: 640px)', {
+          chartPadding: 30,
+          labelOffset: 100,
+          labelDirection: 'explode',
+          labelInterpolationFnc: function(value) {
+            return value;
+          }
+        }],
+        ['screen and (min-width: 1024px)', {
+          labelOffset: 80,
+          chartPadding: 20
+        }]
+      ];
+      new Chartist.Pie('.percentil', data, options, responsiveOptions);
+    </script>
+    <script>
+      new Chartist.Bar('.ct-chart', {
+        labels: ['0.05', '0.25', '0.50', '0.75', '0.95' ],
+        series: [ "{{ estadisticas.p_05 }}", 
+                  "{{ estadisticas.p_25 }}", 
+                  "{{ estadisticas.p_50 }}", 
+                  "{{ estadisticas.p_75 }}",
+                  "{{ estadisticas.p_95 }}"]
+      }, {
+        distributeSeries: true
+      });
+    </script>
+    <script>
+      var parametros = {
+        "lat": "{{ central_point[0] }}",
+        "lon": "{{ central_point[1] }}",
+        "id" : "{{ _id }}"
+      };
+      console.log( "{{ _id }}" )
+      $.ajax({
+        url: '/ndvi_time_serie',
+        data: parametros,
+        type: 'POST',
+
+        success: function( response ){
+          var json = JSON.parse(response);
+          new Chartist.Line('.histograma', {
+            labels: json.month,
+            series: [
+              json.ndvi
+            ]
+          }, {
+            fullWidth: true,
+            chartPadding: {
+              right: 40
+            }
+          });
+        },
+        error: function(error){
+          console.log( error );
+        }
+      });
+    </script>
+
+    <link rel="stylesheet" type="text/css" href="../static/css/graficos.css">
+
+<!-- PopUp -->
+    <script src="../static/js/PopUp.js"></script>
+
+<!-- API GOOGLE MAPS JS -->
+    <script src="../static/js/maps_image.js"></script>
+
+<!-- BOOSTRAP SCRIPTS -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+<!-- FONT AWESOME -->
+    <script src="https://use.fontawesome.com/440f936203.js"></script>
+  </body>
+</html>

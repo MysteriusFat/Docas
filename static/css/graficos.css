@@ -1,0 +1,22 @@
+.ct-series-a .ct-area, .ct-series-a .ct-slice-donut-solid, .ct-series-a .ct-slice-pie {
+    fill: #dc3545;
+}
+
+.ct-series-b .ct-area, .ct-series-b .ct-slice-donut-solid, .ct-series-b .ct-slice-pie {
+    fill: #00b297;
+}
+
+.ct-series-c .ct-area, .ct-series-c .ct-slice-donut-solid, .ct-series-c .ct-slice-pie {
+    fill: #0866C6;
+}
+
+.ct-series-d .ct-area, .ct-series-d .ct-slice-donut-solid, .ct-series-d .ct-slice-pie {
+    fill: #1D2939;
+}
+
+.ct-label {
+    fill: #222;
+    color: #222;
+    font-size: 1rem;
+    line-height: 1;
+}
