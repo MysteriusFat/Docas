@@ -1,15 +1,19 @@
+# ========= FLASK ========= #
 from flask import *
-from flask_caching import Cache
 from flask_admin import Admin
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin, LoginManager, current_user, login_user, logout_user, login_required
 from flask_admin.contrib.sqla import ModelView
-
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# ======== GOOGLE SHIT ========= #
 
 from google.cloud import bigquery, storage
 from datetime import datetime, timedelta
 from PIL import Image
+import ee
+
+# ========= MATH SHIT IDK ======= #
 
 import numpy as np
 import pandas as pd
@@ -17,33 +21,30 @@ import geopandas as gpd
 import fiona
 import matplotlib.pyplot as plt
 
-import os
-import ee
+# ======== JSON AND MORE SHIT ====== #
 
+import os
 import re
 import json
 
 from NASA_winner import *
+from rgb_example import *
 
-app = Flask( __name__ )
+# ========= INICIAR OBJETOS =========== #
 
+app   = Flask( __name__ )
+db    = SQLAlchemy( app )
+login = LoginManager( app )
+ee.Initialize()
 
-ALLOWED_EXTENSION = set(['json', 'shp'])
+# ========= API KEY ============ #
 
-config = {
-    "DEDUG" : True,
-    "CACHE_TYPE" : "simple",
-    "CACHE_DEFAUL_TIMEOUT" : 600
-}   
+file_json = 'TestJS-9381bfacfaba.json'
+
+# ======= CONFIG ========== #
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SECRET_KEY'] = 'dsakjdlajas'
-app.config.from_mapping( config )
-
-db = SQLAlchemy( app )
-login = LoginManager( app )
-
-cache = Cache( app )
 
 # ============ SEGURIDAD =============== #
 
@@ -51,8 +52,16 @@ cache = Cache( app )
 def load_user(user_id):
     return User.query.get(user_id)
 
+ALLOWED_EXTENSION = set(['json', 'shp'])
 def allodef_file( filename ):
     return "." in filename and filename.rsplit( '.', 1 )[1] in ALLOWED_EXTENSION
+
+# ====================================== #
+
+subs = db.Table('subs',
+                db.Column('user_id'  , db.ForeignKey('user.id')  , primary_key=True ),
+                db.Column('evento_id', db.ForeignKey('evento.id'), primary_key=True )
+        )
 
 # ====================================== #
 
@@ -63,7 +72,8 @@ class User( db.Model, UserMixin ):
     email       = db.Column( db.String )
     contrasena  = db.Column( db.String )
 
-    Zonas       = db.relationship('ZonaInteres', backref='user')
+    eventos     = db.relationship('Evento' ,backref="user")  # ONE TO ONE
+    zonas       = db.relationship('ZonaInteres' ,backref='user')            # ONE TO MANY
 
 class ZonaInteres( db.Model, UserMixin ):
     id      = db.Column( db.Integer, primary_key = True )
@@ -76,8 +86,13 @@ class ZonaInteres( db.Model, UserMixin ):
     owner   = db.Column( db.Integer, db.ForeignKey('user.id'))
 
 class PathFotos( db.Model, UserMixin ):
-    id    = db.Column( db.Integer, primary_key = True )
-    url   = db.Column( db.String )
+    id      = db.Column( db.Integer, primary_key = True )
+    url_1   = db.Column( db.String )
+    url_2   = db.Column( db.String )
+    url_3   = db.Column( db.String )
+
+    np_array = db.Column( db.String )
+
     fecha = db.Column( db.Date )
     lan1  = db.Column( db.Float )
     lng1  = db.Column( db.Float )
@@ -86,10 +101,11 @@ class PathFotos( db.Model, UserMixin ):
     area  = db.Column( db.Integer )
 
     estadisticas = db.relationship( 'Estadisticas', backref='pathfotos' )
-    owner = db.Column( db.Integer, db.ForeignKey('zona_interes.id'))
+    owner        = db.Column( db.Integer, db.ForeignKey('zona_interes.id'))
 
 class Estadisticas( db.Model, UserMixin ):
     id = db.Column( db.Integer, primary_key = True )
+
     area_00  = db.Column( db.Float )
     area_25  = db.Column( db.Float )
     area_50  = db.Column( db.Float )
@@ -110,6 +126,16 @@ class Estadisticas( db.Model, UserMixin ):
 
     owner = db.Column( db.Integer, db.ForeignKey('path_fotos.id'))
 
+class Evento( db.Model, UserMixin ):
+    id          = db.Column( db.Integer ,primary_key = True )
+    nombre      = db.Column( db.String )
+    fecha       = db.Column( db.DateTime )
+    ubicacion   = db.Column( db.String )
+    descripcion = db.Column( db.String )
+
+    organizador   = db.Column( db.Integer ,db.ForeignKey('user.id'))
+    participantes = db.relationship('User' ,secondary=subs ,lazy='subquery' ,backref = db.backref('participantes', lazy=True))
+
 admin = Admin( app )
 
 class MyModelView( ModelView ):
@@ -120,8 +146,8 @@ admin.add_view( MyModelView( Estadisticas, db.session ))
 admin.add_view( MyModelView( PathFotos, db.session ))
 admin.add_view( MyModelView( ZonaInteres, db.session ))
 admin.add_view( MyModelView( User, db.session ))
+admin.add_view( MyModelView( Evento, db.session ))
 
-# ================== GRAFIC DATA ==================== #
 
 def load_dirty_json( dirty_json ):
     regex_replace = [(r"([ \{,:\[])(u)?'([^']+)'", r'\1"\3"'), (r" False([, \}\]])", r' false\1'), (r" True([, \}\]])", r' true\1')]
@@ -132,7 +158,6 @@ def load_dirty_json( dirty_json ):
 
 @app.route('/ndvi_time_serie', methods=['POST'])
 def ndvi_time_serie():
-
 
     zone = ZonaInteres.query.get( request.form['id'] )
     data = zone.geojson
@@ -146,64 +171,103 @@ def ndvi_time_serie():
     lon =  float(request.form['lon'])
 
     dates, ndvi_data, parameters = modis_ndvi_time( geom )
-    print(ndvi_data.shape)
     ndvi_data = np.mean(ndvi_data, axis=(0,1))
-    print(type(dates))
-    print(type(ndvi_data))
 
-    return json.dumps({'ndvi': ndvi_data.tolist(), 'month': dates});
-
+    return json.dumps({'month': dates,
+                       'ndvi': ndvi_data.tolist()})
 
 # =================== DASHBOARD ===================== #
 
 @app.route('/index', methods=['GET', 'POST'])
 @login_required
 def Dashboard():
+    if request.method == 'POST':
+        file = request.files['archivo']
+        if file and allodef_file( file.filename ):
+            data = json.load( file )
+            geom, x, y = geom_loading( data )
+            new_zone = ZonaInteres(
+            nombre  = request.form['nombre'],
+            geojson = str( data ),
+            lan     = y,
+            lng     = x,
+            owner   = current_user.id
+            )
+
+            db.session.add( new_zone )
+            db.session.commit()
+
+            Sentinel( data , request.form['nombre'], new_zone, geom )
+
+            flash('Zona de interes agregada correctamente.', 'success' )
+
+        else:
+            flash('La extension del archivo no es valida, porfavor subir archivos GEOJSON o JSON.', 'warning' )
 
     if request.args.get('cord'):
         current_zone = ZonaInteres.query.get( request.args.get('cord') )
         if current_zone is not None:
-            path = PathFotos.query.filter_by( owner = current_zone.id ).first()
-            _id = current_zone.id
-            estadisticas = Estadisticas.query.filter_by( owner = path.id ).first()
-            url = path.url
 
-            coords = [ [path.lan1, path.lng1 ],[ path.lan2, path.lng2 ]]
+            path         = PathFotos.query.filter_by( owner = current_zone.id ).first()
+            estadisticas = Estadisticas.query.filter_by( owner = path.id ).first()
+
+            _id   = current_zone.id
+            url_1 = path.url_1
+            url_2 = path.url_2
+
+            areas     = [ estadisticas.area_00 ,estadisticas.area_25 ,estadisticas.area_50 ,estadisticas.area_75 ,estadisticas.area_100 ]
+            percentil = [estadisticas.p_05, estadisticas.p_25 ,estadisticas.p_50 ,estadisticas.p_75 ,estadisticas.p_95]
+
+            coords        = [ [path.lan1, path.lng1 ],[ path.lan2, path.lng2 ]]
             central_point = [ current_zone.lan, current_zone.lng ]
-            fecha = path.fecha
-            area_25 = round(estadisticas.area_25, 2)
+            fecha         = path.fecha
+            area_25       = round(estadisticas.area_25, 2)
+
         else:
-            url = ""
+            url_1 = ""
+            url_2 = ""
             coords = [[12, 12], [21,21]]
             central_point = [ 20, 20 ]
             fecha = ""
             estadisticas = ""
             area_25 = ""
             _id = ""
+
+            areas = []
+            percentil = []
+
     else:
         current_zone = ZonaInteres.query.first()
         if current_zone is not None:
             path = PathFotos.query.filter_by( owner = current_zone.id ).first()
             if path is not None:
                 estadisticas = Estadisticas.query.filter_by( owner = path.id ).first()
-                url = path.url
+                url_1 = path.url_1
+                url_2 = path.url_2
 
                 coords = [ [path.lan1, path.lng1 ],[ path.lan2, path.lng2 ]]
                 central_point = [ current_zone.lan, current_zone.lng ]
                 fecha = path.fecha
                 area_25 = round(estadisticas.area_25, 2)
                 _id = current_zone.id
+                areas = [ estadisticas.area_00 ,estadisticas.area_25 ,estadisticas.area_50 ,estadisticas.area_75 ,estadisticas.area_100 ]
+                percentil = [estadisticas.p_05, estadisticas.p_25 ,estadisticas.p_50 ,estadisticas.p_75 ,estadisticas.p_95]
 
             else:
-                url = ""
+                url_1 = ""
+                url_2 = ""
                 coords = [[20, 20], [21, 21]]
                 central_point = [ 20, 21 ]
                 fecha = ""
                 estadisticas = ""
                 area_25 = ""
                 _id = ""
+
+                percentil = []
+                areas = []
         else:
-            url = ""
+            url_1  = ""
+            url_2  = ""
             coords = [[20, 20], [21, 21]]
             central_point = [ 20, 21 ]
             fecha = ""
@@ -211,57 +275,32 @@ def Dashboard():
             area_25 = ""
             _id = ""
 
-    if request.method == 'POST':
-        file = request.files['archivo']
-        if file and allodef_file( file.filename ):
-            
-            data = json.load( file )
-            x = data['features'][0]['geometry']['coordinates'][0]
-            
-            print( x )
-            
-            lng = []
-            lan = []
+            areas = []
+            percentil = []
 
-            for i in x:
-                lan.append( i[1] )
-                lng.append( i[0] )
-                print( i )
-
-            minLan = min( lan )
-            maxLan = max( lan )
-
-            minLng = min( lng )
-            maxLng = max( lng )
-
-            file.close()
-
-            new_zone = ZonaInteres(
-                        nombre = request.form['nombre'],
-                        geojson = str( data ),
-                        lan = (( minLan + maxLan ) / 2),
-                        lng = (( minLng + maxLng ) / 2),
-                        owner = current_user.id
-                )
-
-            db.session.add( new_zone )
-            db.session.commit()
-
-            Process( data , request.form['nombre'], new_zone )
-
-            flash('Zona de interes agregada correctamente.', 'success' )
-
-        else: 
-            flash('La extension del archivo no es valida, porfavor subir archivos GEOJSON o JSON.', 'warning' )
 
     zonas = ZonaInteres.query.filter_by( owner = current_user.id )
-    return render_template( "Dashboard.html", zonas = zonas, url = url, coords = coords, central_point = central_point, fecha = fecha, estadisticas = estadisticas, area_25 = area_25, _id = _id  )
+    return render_template( "Dashboard.html",
+                            zonas         = zonas,
+                            url_1         = url_1,
+                            url_2         = url_2,
+                            coords        = coords,
+                            central_point = central_point,
+                            fecha         = fecha,
+                            estadisticas  = estadisticas,
+                            area_25       = area_25,
+                            _id           = _id,
+                            areas         = areas,
+                            current_user  = current_user,
+                            percentil     = percentil
+                            )
 
-def Process( data, name, zone ):
+# =============== GOOGLE EARTH ENGINEL ============== #
 
-    ee.Initialize()
-    file_json = 'ADL-forestal-segmentation-7dc429779824.json'
-    bucket_name = 'ranger-app'
+def Sentinel( data, name, zone, geom ):
+
+    file_json = 'TestJS-9381bfacfaba.json'
+    bucket_name = 'docas'
 
     predio = 10014
     now    = datetime.now()
@@ -269,26 +308,42 @@ def Process( data, name, zone ):
     date_time = now.strftime("%Y-%m-%d")
     past_time = (now-delta).strftime("%Y-%m-%d")
 
-    geom, x, y = geom_loading( data )
+    dates, ndvi_data, parameters = modis_ndvi_time( geom )
+    ndvi_data = np.mean( ndvi_data, axis=(0,1) )
 
-    ndvi, now_date, coords, geotrasform, stats = ndvi_sentinel_calculation( geom, past_time, date_time )    
-    colormap_image( name , ndvi )
+    np.save( name ,ndvi_data )
+    numpy_save = np.load( name + ".npy" )
 
-    client = storage.Client.from_service_account_json(file_json)
+    ndvi, now_date, coords, geotrasform, stats = ndvi_sentinel_calculation( geom, past_time, date_time )
+    colormap_image( name+"NDIV" , ndvi )
+
+    client = storage.Client.from_service_account_json( file_json )
     bucket = client.get_bucket(bucket_name)
+    url_ndvi = upload_ndvi( name+"NDIV" , bucket )
 
-    url_ndvi = upload_ndvi( name , bucket)
+
+    rgb_data, now_date, coords, parameters = rgb_sentinel( geom, past_time, date_time )
+    colormap_rgb( name+"RGB", rgb_data )
+    client = storage.Client.from_service_account_json( file_json )
+    bucket = client.get_bucket(bucket_name)
+    url_rgb = upload_ndvi( name+"RGB" , bucket )
+
+
 
     new_foto = PathFotos(
-                            url = url_ndvi,
+                            url_1 = url_ndvi,
+                            url_2 = url_rgb,
                             fecha = datetime.now(),
                             lan1 = coords[0][0],
                             lng1 = coords[0][1],
+
+                            #np_array = numpy_save,
 
                             lan2 = coords[1][0],
                             lng2 = coords[1][1],
                             owner = zone.id
                         )
+
     db.session.add( new_foto )
     db.session.commit()
 
@@ -303,17 +358,58 @@ def Process( data, name, zone ):
                             p_50 = stats['p_0.50'],
                             p_75 = stats['p_0.75'],
                             p_95 = stats['p_0.95'],
-
-                            promedio = stats['mean'], 
+                            promedio = stats['mean'],
                             des_ests = stats['std'] ,
                             pro_pix  = stats['mean/pixel'],
-                            owner = new_foto.id 
+                            owner    = new_foto.id
                         )
     db.session.add( new_estadisticas )
     db.session.commit()
 
-    print( stats )
+# ================ QUIENES SOMOS ==================== # Contactos y esas weas
 
+@app.route('/quienes-somos')
+def QuienesSomos():
+    return render_template('QuienesSomos.html')
+
+@app.route('/contacto')
+def Contacto():
+    return "<h1> Contacto </h1>"
+
+# ===================== LISTA ======================= #
+
+@app.route('/eventos', methods=['GET', 'POST'])
+def Lista():
+    if request.method == 'POST':
+        new_event = Evento(
+            nombre      = request.form['nombre'],
+            fecha       = datetime.strptime(request.form['fecha'], '%Y-%m-%d'),
+            ubicacion   = request.form['ubicacion'],
+            descripcion = request.form['descripcion'],
+            organizador = current_user.id
+        )
+        db.session.add( new_event )
+        db.session.commit()
+
+    eventos = Evento.query.all()
+
+    return render_template('Lista.html', eventos = eventos )
+
+@app.route('/addPeople', methods=['POST'] )
+def AddPeople():
+    event = Evento.query.get( request.form['event_id'] )
+    user  = User.query.get( request.form['user_id'] )
+    print( event )
+    print( user )
+    try:
+        event.participantes.append( user )
+        db.session.commit()
+        return True
+    except:
+        return False
+
+
+# =================================================== #
 
 # ============ LOGIN | LOG OUT | SIG UP ============= #
 
@@ -321,7 +417,7 @@ def Process( data, name, zone ):
 def Index():
     if request.method == 'POST':
         user = User.query.filter_by( email = request.form['email'] ).first()
-        
+
         if user is not None and check_password_hash(user.contrasena, request.form['contrasena']):
             login_user( user )
             return redirect( url_for( 'Dashboard' ))
@@ -333,13 +429,13 @@ def Index():
 @app.route('/sigup', methods= ['GET', 'POST'])
 def Registrarse():
     if request.method == 'POST':
-        
+
         hash_pw = generate_password_hash( request.form['contrasena'], method="sha256")
 
         New_user = User(
-                            nombre = request.form['nombre'],
-                            apellido = request.form['apellido'],
-                            email = request.form['email'],
+                            nombre     = request.form['nombre'],
+                            apellido   = request.form['apellido'],
+                            email      = request.form['email'],
                             contrasena = hash_pw
                         )
 
@@ -357,11 +453,6 @@ def LogOut():
     logout_user()
     flash('Te desconectasde con exito. ', 'warning')
     return redirect( url_for('Index') )
-
-@app.route('/test')
-def Test():
-    cache.set("xd", "Hola Mundo!")
-    return cache.get("xd")
 
 if __name__ == "__main__":
     db.create_all()

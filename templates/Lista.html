@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title> Eventos | Docas </title>
+<!-- JQUERY -->
+    <script src="../static/js/jquery.min.js"></script>
+<!-- BOOSTRAP -->
+    <link rel="stylesheet" href="../static/css/bootstrap.min.css">
+<!-- FONT AWESOME -->
+		<script src="../static/js/fontawesome.js"></script>
+<!-- POP UP -->
+		<link rel="stylesheet" href="../static/css/PopUp.css">
+</head>
+<body class="bg-light" style="height:850px;">
+	<nav class="navbar navbar-light bg-dark" style="height:60px">
+  	<div class="h4 text-white">
+			<button class="btn btn-outline-light" id="abrir">
+				<i class="fas fa-plus"></i>
+			</button>
+			<span class="mx-3">
+				Crear Evento
+			</span>
+  	</div>
+	</nav>
+	<main style="height: 100%;">
+		<div class="container-fluid" style="height: 100%;">
+			<div class="row h-100">
+				<div class="col h-100">
+					{% for evento in eventos %}
+						<div class="card shadow-lg mt-4">
+							<div class="card-header">
+								<div class="row">
+									<div class="col">
+										<h4 class="mb-0"> {{ evento.nombre }} </h4>
+										<span class="text-secondary"> {{ evento.organizador.nombre }} </span>
+									</div>
+									<div class="col text-right mr-4">
+										<h5> Fecha: {{ evento.fecha }} </h5>
+									</div>
+								</div>
+							</div>
+							<div class="card-body">
+								<h5 class="card-title"> {{ evento.ubicacion }} </h5>
+								<p class="card-text"> {{ evento.descripcion }}</p>
+								<button class="btn btn-primary" id="{{ evento.id }}"  onclick="addPerson( {{ evento.id }}, {{ current_user.id }} )"> Asistire ! </button>
+							</div>
+						</div>
+					{% endfor %}
+				</div>
+				<div class="col-7 h-100 mt-4">
+					<div class="card shadow-lg p-1 m-auto" style="height: 100%;">
+						<iframe src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d12784.859103378767!2d-73.07593304999999!3d-36.76541475!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1ses-419!2scl!4v1571868052119!5m2!1ses-419!2scl" width="100%" height="100%" frameborder="0" style="border:0;" allowfullscreen=""></iframe>
+					</div>
+				</div>
+			</div>
+		</div>
+	</main>
+	<div class="overlay" id="overlay">
+    <div class="popup" id="popup">
+      <div class="card p-4" style="width: 35rem;">
+        <div class="row">
+          <div class="col">
+            <h3> Crea un evento ! </h3>
+          </div>
+          <div class="col text-right">
+            <button class="btn" id="cerrarpop"> <i class="fas fa-times"></i> </button>
+          </div>
+        </div>
+        <form action="/eventos" method="post">
+          <div class="form-group mt-2">
+          	<input type="text" class="form-control" placeholder="Nombre" name=nombre>
+						<div class="row mt-3">
+							<div class="col">
+								<input type="text" class="form-control" placeholder="Ubicacion" name=ubicacion>
+							</div>
+							<div class="col">
+								<input type="date" class="form-control" name="fecha">
+							</div>
+						</div>
+        	</div>
+          <textarea class="form-control" name="descripcion" rows="3" placeholder="Descripcion"></textarea>
+          <button type="submit" class="btn btn-info btn-lg btn-block mt-3">Submit</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+<!-- ANADIR PERSONSA -->
+	<script src="../static/js/eventos.js"></script>
+<!-- BOOSTRAP SCRIPTS -->
+  <script src="../static/js/popper.min.js"></script>
+  <script src="../static/js/bootstrap.min.js"></script>
+<!-- POP UP -->
+	<script src="../static/js/PopUp.js"></script>
+<!-- FONT AWESOME -->
+	<script src="https://use.fontawesome.com/440f936203.js"></script>
+</body>
+</html>
