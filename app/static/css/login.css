@@ -1,0 +1,32 @@
+body{
+  position: absolute;
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+}
+
+#box{
+  margin: auto;
+  height: 85%;
+  width: 85%;
+  z-index: 100;
+}
+
+.sidebar{
+  position  : absolute;
+  width  : 600px;
+  height : 100%;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+#logo{
+  width: 250px ;
+}
+
+#log{
+  margin-left:600px;
+}
